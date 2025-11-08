@@ -13,7 +13,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.UUID;
 
 public final class Main extends JavaPlugin implements Listener {
 
@@ -37,6 +36,7 @@ public final class Main extends JavaPlugin implements Listener {
         this.getCommand("warn").setExecutor(new WarnCommand());
         this.getCommand("unban").setExecutor(new UnbanCommand());
         this.getCommand("unmute").setExecutor(new UnmuteCommand());
+        this.getCommand("tools").setExecutor(new Tools());
 
         //Event
         this.getServer().getPluginManager().registerEvents(this, this);
