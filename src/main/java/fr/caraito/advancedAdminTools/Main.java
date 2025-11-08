@@ -40,6 +40,7 @@ public final class Main extends JavaPlugin implements Listener {
 
         //Event
         this.getServer().getPluginManager().registerEvents(this, this);
+        this.getServer().getPluginManager().registerEvents(new Tools(), this);
 
 
 
