@@ -16,7 +16,7 @@ public class BanCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
 
-        if (commandSender.hasPermission("punishcore.ban")) {
+        if (commandSender.hasPermission("aat.ban")) {
             if (strings.length >= 3) {
                 String targetPlayer = strings[0];
                 String durationArg = strings[1];
@@ -40,8 +40,8 @@ public class BanCommand implements CommandExecutor {
                 String timeMsg = durationMs == -1 ? "Permanent" : durationArg;
 
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    if (player.hasPermission("punishcore.ban")) {
-                        player.sendMessage("§c[Punish Core] §a- [Ban] - §ePlayer §7" + targetPlayer + " §ehas been banned by §7" + commandSender.getName() + " §efor: §7" + reason + " §e(Duration: " + timeMsg + ")");
+                    if (player.hasPermission("aat.ban")) {
+                        player.sendMessage("§c[Advanced Admin Tools] §a- [Ban] - §ePlayer §7" + targetPlayer + " §ehas been banned by §7" + commandSender.getName() + " §efor: §7" + reason + " §e(Duration: " + timeMsg + ")");
                     }
                 }
 

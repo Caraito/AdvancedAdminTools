@@ -15,7 +15,7 @@ import java.io.IOException;
 public class UnbanCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
-        if (!commandSender.hasPermission("punishcore.unban")) {
+        if (!commandSender.hasPermission("aat.unban")) {
             commandSender.sendMessage("§cYou do not have permission to use this command.");
             return true;
         }
@@ -58,8 +58,8 @@ public class UnbanCommand implements CommandExecutor {
 
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("punishcore.unban")) {
-                player.sendMessage("§c[Punish Core] §a- [Ban] - §ePlayer §7" + targetPlayer + " §ehas been unbanned by §7" + commandSender.getName() + ".");
+            if (player.hasPermission("aat.unban")) {
+                player.sendMessage("§c[Advanced Admin Tools] §a- [Ban] - §ePlayer §7" + targetPlayer + " §ehas been unbanned by §7" + commandSender.getName() + ".");
             }
         }
 

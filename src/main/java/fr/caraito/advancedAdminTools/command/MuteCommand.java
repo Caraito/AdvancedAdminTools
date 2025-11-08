@@ -16,7 +16,7 @@ public class MuteCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
 
-        if (commandSender.hasPermission("punishcore.mute")) {
+        if (commandSender.hasPermission("aat.mute")) {
             if (strings.length >= 3) {
                 String targetPlayer = strings[0];
                 String durationArg = strings[1];
@@ -46,8 +46,8 @@ public class MuteCommand implements CommandExecutor {
 
 
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    if (player.hasPermission("punishcore.mute")) {
-                        player.sendMessage("§c[Punish Core] §a- [Mute] - §ePlayer §7" + targetPlayer + " §ehas been muted by §7" + commandSender.getName() + " §efor: §7" + reason + " §e(Duration: " + durationArg + ")");
+                    if (player.hasPermission("aat.mute")) {
+                        player.sendMessage("§c[Advanced Admin Tools] §a- [Mute] - §ePlayer §7" + targetPlayer + " §ehas been muted by §7" + commandSender.getName() + " §efor: §7" + reason + " §e(Duration: " + durationArg + ")");
                     }
                 }
 

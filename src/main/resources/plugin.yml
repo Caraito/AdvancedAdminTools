@@ -9,16 +9,19 @@ description: An advanced admin tools plugin
 commands:
   ban:
     description: Ban a player from the server.
-    permission: punishcore.ban
+    permission: aat.ban
   mute:
     description: Mute a player in the chat.
-    permission: punishcore.mute
+    permission: aat.mute
   warn:
     description: Warn a player.
-    permission: punishcore.warn
+    permission: aat.warn
   unban:
     description: Unban a player from the server.
-    permission: punishcore.unban
+    permission: aat.unban
   unmute:
     description: Unmute a player in the chat.
-    permission: punishcore.unmute
+    permission: aat.unmute
+  tools:
+    description: Open the admin tools menu.
+    permission: aat.tools

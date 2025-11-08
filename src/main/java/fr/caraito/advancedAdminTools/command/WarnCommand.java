@@ -9,7 +9,7 @@ import org.bukkit.entity.Player;
 public class WarnCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
-        if (!commandSender.hasPermission("punishcore.warn")) {
+        if (!commandSender.hasPermission("aat.warn")) {
             commandSender.sendMessage("§cYou do not have permission to use this command.");
             return true;
         }
@@ -32,15 +32,15 @@ public class WarnCommand implements CommandExecutor {
         target.sendMessage("§cYou have received a warning! §aReason: §7" + reason);
 
         // Notify all admins with permission
-        String adminMsg = "§c[Punish Core] §a- [Warn] - §7" + target.getName() + " §ehas been warned by §7" + commandSender.getName() + ". §aReason: §7" + reason;
+        String adminMsg = "§c[Advanced Admin Tools] §a- [Warn] - §7" + target.getName() + " §ehas been warned by §7" + commandSender.getName() + ". §aReason: §7" + reason;
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.hasPermission("punishcore.warn")) {
+            if (p.hasPermission("aat.warn")) {
                 p.sendMessage(adminMsg);
             }
         }
 
         // Feedback to sender if not player or not admin
-        if (!(commandSender instanceof Player) || !((Player)commandSender).hasPermission("punishcore.warn")) {
+        if (!(commandSender instanceof Player) || !((Player)commandSender).hasPermission("aat.warn")) {
             commandSender.sendMessage(adminMsg);
         }
 

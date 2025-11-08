@@ -15,7 +15,7 @@ import java.io.IOException;
 public class UnmuteCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
-        if (!commandSender.hasPermission("punishcore.unmute")) {
+        if (!commandSender.hasPermission("aat.unmute")) {
             commandSender.sendMessage("§cYou do not have permission to use this command.");
             return true;
         }
@@ -61,17 +61,17 @@ public class UnmuteCommand implements CommandExecutor {
         }
 
 
-        String msg = "§c[Punish Core] §a- [Mute] - §ePlayer §7" + targetPlayer + " §ehas been unmuted by §e" + commandSender.getName() + ".";
+        String msg = "§c[Advanced Admin Tools] §a- [Mute] - §ePlayer §7" + targetPlayer + " §ehas been unmuted by §e" + commandSender.getName() + ".";
 
         // Notify all players with permission
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.hasPermission("punishcore.unmute")) {
+            if (p.hasPermission("aat.unmute")) {
                 p.sendMessage(msg);
             }
         }
 
         // Feedback to sender if not player or not admin
-        if (!(commandSender instanceof Player) || !((Player)commandSender).hasPermission("punishcore.unmute")) {
+        if (!(commandSender instanceof Player) || !((Player)commandSender).hasPermission("aat.unmute")) {
             commandSender.sendMessage(msg);
         }
 
