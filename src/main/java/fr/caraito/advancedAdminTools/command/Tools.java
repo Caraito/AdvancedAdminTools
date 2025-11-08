@@ -4,6 +4,7 @@ import fr.caraito.advancedAdminTools.Main;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -20,16 +21,35 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
 public class Tools implements CommandExecutor, Listener {
 
-    // Stocke la page actuelle de chaque joueur
+    // Pages et bans
     private static final Map<UUID, Integer> playerPages = new HashMap<>();
     public static Map<UUID, Boolean> needsBan = new HashMap<>();
     public static Map<UUID, String> banPlayer = new HashMap<>();
+    Map<UUID, Boolean> isReason = new HashMap<>();
+    Map<UUID, Boolean> isTime = new HashMap<>();
+    Map<UUID, String> reason = new HashMap<>();
+
+    // Warn
+    public static Map<UUID, Boolean> needsWarn = new HashMap<>();
+    public static Map<UUID, String> warnPlayer = new HashMap<>();
+    Map<UUID, Boolean> isWarnReason = new HashMap<>();
+    Map<UUID, String> warnReason = new HashMap<>();
+
+    // Mute
+    public static Map<UUID, Boolean> needsMute = new HashMap<>();
+    public static Map<UUID, String> mutePlayer = new HashMap<>();
+    Map<UUID, Boolean> isMuteReason = new HashMap<>();
+    Map<UUID, Boolean> isMuteTime = new HashMap<>();
+    Map<UUID, String> muteReason = new HashMap<>();
+    Map<UUID, String> muteTime = new HashMap<>();
 
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
@@ -53,21 +73,18 @@ public class Tools implements CommandExecutor, Listener {
 
     private void openPage(Player player, int page) {
         List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
-        players.remove(player); // on retire l'admin lui-même
+        players.remove(player);
 
-        int maxPerPage = 45; // 45 têtes, 9 slots réservés aux contrôles
+        int maxPerPage = 45;
         int totalPages = (int) Math.ceil(players.size() / (double) maxPerPage);
         if (totalPages == 0) totalPages = 1;
         page = Math.max(0, Math.min(page, totalPages - 1));
-
-
 
         Inventory inv = Bukkit.createInventory(null, 54, "§6Admin Tools §7(Page " + (page + 1) + "/" + totalPages + ")");
 
         int start = page * maxPerPage;
         int end = Math.min(start + maxPerPage, players.size());
 
-        // Ajout des têtes
         for (int i = start; i < end; i++) {
             Player target = players.get(i);
             ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
@@ -80,7 +97,6 @@ public class Tools implements CommandExecutor, Listener {
             inv.addItem(skull);
         }
 
-        // Bouton "Page précédente"
         if (page > 0) {
             ItemStack previous = new ItemStack(Material.ARROW);
             ItemMeta pMeta = previous.getItemMeta();
@@ -91,7 +107,6 @@ public class Tools implements CommandExecutor, Listener {
             inv.setItem(45, previous);
         }
 
-        // Bouton "Page suivante"
         if (page < totalPages - 1) {
             ItemStack next = new ItemStack(Material.ARROW);
             ItemMeta nMeta = next.getItemMeta();
@@ -102,10 +117,7 @@ public class Tools implements CommandExecutor, Listener {
             inv.setItem(53, next);
         }
 
-        // Stocke la page actuelle
         playerPages.put(player.getUniqueId(), page);
-
-        // Ouvre l'inventaire
         player.openInventory(inv);
     }
 
@@ -117,7 +129,7 @@ public class Tools implements CommandExecutor, Listener {
         Inventory inv = event.getInventory();
         if (inv == null || !event.getView().getTitle().startsWith("§6Admin Tools") && !event.getView().getTitle().startsWith("§6Tools for")) return;
 
-        event.setCancelled(true); // empêche de prendre les items
+        event.setCancelled(true);
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
@@ -134,7 +146,6 @@ public class Tools implements CommandExecutor, Listener {
         } else if (clicked.getType() == Material.PLAYER_HEAD) {
 
             String targetName = name.replace("§e", "");
-
             Player target = Bukkit.getPlayer(targetName);
 
             if (target == null) {
@@ -167,6 +178,8 @@ public class Tools implements CommandExecutor, Listener {
             Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
             if (target == null) return;
 
+            player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 1, false, false, false));
+            player.setGameMode(GameMode.CREATIVE);
             player.teleport(target.getLocation());
             player.sendMessage("§aYou have been teleported to §e" + target.getName() + "§a.");
             player.closeInventory();
@@ -191,8 +204,32 @@ public class Tools implements CommandExecutor, Listener {
             banPlayer.put(player.getUniqueId(), target.getName());
             player.closeInventory();
             player.sendMessage("§ePlease enter the ban reason in chat:");
+            banMessage(player);
 
+        } else if (name.startsWith("§eWarn")) {
 
+            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
+            if (target == null) return;
+
+            needsWarn.put(player.getUniqueId(), true);
+            isWarnReason.put(player.getUniqueId(), false);
+            warnPlayer.put(player.getUniqueId(), target.getName());
+            player.closeInventory();
+            player.sendMessage("§ePlease enter the warn reason in chat:");
+            warnMessage(player);
+
+        } else if (name.startsWith("§6Mute")) {
+
+            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
+            if (target == null) return;
+
+            needsMute.put(player.getUniqueId(), true);
+            isMuteReason.put(player.getUniqueId(), false);
+            isMuteTime.put(player.getUniqueId(), false);
+            mutePlayer.put(player.getUniqueId(), target.getName());
+            player.closeInventory();
+            player.sendMessage("§ePlease enter the mute reason in chat:");
+            muteMessage(player);
 
         }
     }
@@ -207,7 +244,7 @@ public class Tools implements CommandExecutor, Listener {
             meta.setDisplayName("§e" + target.getName());
             skull.setItemMeta(meta);
         }
-        inv.setItem(5, skull);
+        inv.setItem(4, skull);
 
         ItemStack freeze = new ItemStack(Material.ICE);
         ItemMeta fMeta = freeze.getItemMeta();
@@ -215,7 +252,7 @@ public class Tools implements CommandExecutor, Listener {
             fMeta.setDisplayName("§bFreeze §7(" + (target.hasMetadata("frozen") ? "On" : "Off") + ")");
             freeze.setItemMeta(fMeta);
         }
-        inv.setItem(11, freeze);
+        inv.setItem(10, freeze);
 
         ItemStack teleport = new ItemStack(Material.ENDER_PEARL);
         ItemMeta tMeta = teleport.getItemMeta();
@@ -223,7 +260,7 @@ public class Tools implements CommandExecutor, Listener {
             tMeta.setDisplayName("§aTeleport to Player");
             teleport.setItemMeta(tMeta);
         }
-        inv.setItem(13, teleport);
+        inv.setItem(12, teleport);
 
         ItemStack kick = new ItemStack(Material.ANVIL);
         ItemMeta kMeta = kick.getItemMeta();
@@ -231,7 +268,7 @@ public class Tools implements CommandExecutor, Listener {
             kMeta.setDisplayName("§dKick Player");
             kick.setItemMeta(kMeta);
         }
-        inv.setItem(15, kick);
+        inv.setItem(14, kick);
 
         ItemStack ban = new ItemStack(Material.BARRIER);
         ItemMeta bMeta = ban.getItemMeta();
@@ -239,7 +276,23 @@ public class Tools implements CommandExecutor, Listener {
             bMeta.setDisplayName("§cBan Player");
             ban.setItemMeta(bMeta);
         }
-        inv.setItem(17, ban);
+        inv.setItem(16, ban);
+
+        ItemStack warn = new ItemStack(Material.PAPER);
+        ItemMeta wMeta = warn.getItemMeta();
+        if (wMeta != null) {
+            wMeta.setDisplayName("§eWarn Player");
+            warn.setItemMeta(wMeta);
+        }
+        inv.setItem(21, warn);
+
+        ItemStack mute = new ItemStack(Material.SHEARS);
+        ItemMeta mMeta = mute.getItemMeta();
+        if (mMeta != null) {
+            mMeta.setDisplayName("§6Mute Player");
+            mute.setItemMeta(mMeta);
+        }
+        inv.setItem(23, mute);
 
         admin.openInventory(inv);
     }
@@ -250,46 +303,86 @@ public class Tools implements CommandExecutor, Listener {
         playerPages.remove(player.getUniqueId());
     }
 
-    Map<UUID, Boolean> isReason = new HashMap<>();
-    Map<UUID, Boolean> isTime = new HashMap<>();
-    Map<UUID, String> reason = new HashMap<>();
-
     @EventHandler
     public void onChatToBan(AsyncPlayerChatEvent event) {
-
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        if (!needsBan.getOrDefault(uuid, false)) return;
+        // BAN
+        if (needsBan.getOrDefault(uuid, false)) {
+            event.setCancelled(true);
+            if (!isReason.getOrDefault(uuid, false)) {
+                reason.put(uuid, event.getMessage());
+                isReason.put(uuid, true);
+                player.sendMessage("§ePlease enter the ban duration in this format : §71m, 2h, 3d :");
+                return;
+            } else if (!isTime.getOrDefault(uuid, false)) {
+                String time = event.getMessage();
+                String banReason = reason.get(uuid);
+                String targetName = banPlayer.get(uuid);
+                Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                    player.performCommand("ban " + targetName + " " + time + " " + banReason);
+                    needsBan.remove(uuid);
+                    reason.remove(uuid);
+                    banPlayer.remove(uuid);
+                    isReason.remove(uuid);
+                    isTime.remove(uuid);
 
-        event.setCancelled(true);
+                });
 
-        if (isReason.getOrDefault(uuid, false) == false) {
+                return;
 
-            reason.put(uuid, event.getMessage());
-            isReason.put(uuid, true);
-            player.sendMessage("§ePlease enter the ban duration in this format : §71m, 2h, 3d :");
-            return;
-        } else if (isTime.getOrDefault(uuid, false) == false) {
-
-            String time = event.getMessage();
-            String banReason = reason.get(uuid);
-            String targetName = banPlayer.get(uuid);
-
-            player.performCommand("ban " + targetName + " " + time + " " + banReason);
-            needsBan.remove(uuid);
-            reason.remove(uuid);
-            banPlayer.remove(uuid);
-            isReason.remove(uuid);
-            isTime.remove(uuid);
-            return;
-
-
+            }
         }
 
+        // WARN
+        if (needsWarn.getOrDefault(uuid, false)) {
+            event.setCancelled(true);
+            if (!isWarnReason.getOrDefault(uuid, false)) {
+                warnReason.put(uuid, event.getMessage());
+                isWarnReason.put(uuid, true);
+                Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                    player.performCommand("warn " + warnPlayer.get(uuid) + " " + warnReason.get(uuid));
+                    needsWarn.remove(uuid);
+                    isWarnReason.remove(uuid);
+                    warnPlayer.remove(uuid);
+                    warnReason.remove(uuid);
+                });
 
-        needsBan.remove(uuid);
+                return;
+            }
+        }
 
+        // MUTE
+        if (needsMute.getOrDefault(uuid, false)) {
+            event.setCancelled(true);
+            if (!isMuteReason.getOrDefault(uuid, false)) {
+                muteReason.put(uuid, event.getMessage());
+                isMuteReason.put(uuid, true);
+                player.sendMessage("§ePlease enter the mute duration in this format : §71m, 2h, 3d :");
+                return;
+            } else if (!isMuteTime.getOrDefault(uuid, false)) {
+                muteTime.put(uuid, event.getMessage());
+                isMuteTime.put(uuid, true);
+
+                String targetName = mutePlayer.get(uuid);
+                String time = muteTime.get(uuid);
+                String reason = muteReason.get(uuid);
+
+                Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                    player.performCommand("mute " + targetName + " " + time + " " + reason);
+                    needsMute.remove(uuid);
+                    mutePlayer.remove(uuid);
+                    isMuteReason.remove(uuid);
+                    isMuteTime.remove(uuid);
+                    muteReason.remove(uuid);
+                    muteTime.remove(uuid);
+                });
+
+
+                return;
+            }
+        }
     }
 
     @EventHandler
@@ -302,38 +395,96 @@ public class Tools implements CommandExecutor, Listener {
         banPlayer.remove(uuid);
         isReason.remove(uuid);
         isTime.remove(uuid);
+
+        needsWarn.remove(uuid);
+        warnPlayer.remove(uuid);
+        isWarnReason.remove(uuid);
+        warnReason.remove(uuid);
+
+        needsMute.remove(uuid);
+        mutePlayer.remove(uuid);
+        isMuteReason.remove(uuid);
+        isMuteTime.remove(uuid);
+        muteReason.remove(uuid);
+        muteTime.remove(uuid);
+
         playerPages.remove(uuid);
     }
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-
         Player player = event.getPlayer();
         if (player.hasMetadata("frozen")) {
             event.setCancelled(true);
             freezeMessage(player);
-
         }
-
     }
 
     public void freezeMessage(Player player) {
-
         new BukkitRunnable() {
             @Override
             public void run() {
-
                 if (!player.hasMetadata("frozen")) {
-
                     this.cancel();
                     return;
-
                 }
-
                 player.sendTitle("§cYou are frozen!", "§7Contact an admin to be unfrozen.", 0, 40, 0);
             }
         }.runTaskTimer(Main.getInstance(), 0L, 40L);
-
     }
 
+    public void banMessage(Player player) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                boolean isreason = isReason.getOrDefault(player.getUniqueId(), true);
+                boolean istime = isTime.getOrDefault(player.getUniqueId(), true);
+
+                if (!isreason) {
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent("§aPlease enter the ban reason in chat:"));
+                } else if (istime) {
+                    cancel();
+                    return;
+                } else {
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent("§aPlease enter the ban duration in this format : §71m, 2h, 3d :"));
+                }
+            }
+        }.runTaskTimer(Main.getInstance(), 0L, 20L);
+    }
+
+    public void warnMessage(Player player) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!needsWarn.getOrDefault(player.getUniqueId(), false)) {
+                    cancel();
+                    return;
+                }
+                boolean isreason = isWarnReason.getOrDefault(player.getUniqueId(), false);
+                if (!isreason) {
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent("§aPlease enter the warn reason in chat:"));
+                }
+            }
+        }.runTaskTimer(Main.getInstance(), 0L, 20L);
+    }
+
+    public void muteMessage(Player player) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!needsMute.getOrDefault(player.getUniqueId(), false)) {
+                    cancel();
+                    return;
+                }
+                boolean isreason = isMuteReason.getOrDefault(player.getUniqueId(), false);
+                boolean istime = isMuteTime.getOrDefault(player.getUniqueId(), false);
+
+                if (!isreason) {
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent("§aPlease enter the mute reason in chat:"));
+                } else if (!istime) {
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent("§aPlease enter the mute duration in this format : §71m, 2h, 3d :"));
+                }
+            }
+        }.runTaskTimer(Main.getInstance(), 0L, 20L);
+    }
 }

@@ -1,4 +1,4 @@
-name: Advanced Admin Tools
+name: AdvancedAdminTools
 version: '1.0'
 main: fr.caraito.advancedAdminTools.Main
 api-version: '1.18'
