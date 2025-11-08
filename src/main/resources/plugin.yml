@@ -1,0 +1,24 @@
+name: Advanced Admin Tools
+version: '1.0'
+main: fr.caraito.advancedAdminTools.Main
+api-version: '1.18'
+authors: [ Caraito ]
+description: An advanced admin tools plugin
+
+
+commands:
+  ban:
+    description: Ban a player from the server.
+    permission: punishcore.ban
+  mute:
+    description: Mute a player in the chat.
+    permission: punishcore.mute
+  warn:
+    description: Warn a player.
+    permission: punishcore.warn
+  unban:
+    description: Unban a player from the server.
+    permission: punishcore.unban
+  unmute:
+    description: Unmute a player in the chat.
+    permission: punishcore.unmute
