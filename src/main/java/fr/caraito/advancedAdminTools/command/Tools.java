@@ -1,33 +1,40 @@
 package fr.caraito.advancedAdminTools.command;
 
 import fr.caraito.advancedAdminTools.Main;
+import fr.caraito.advancedAdminTools.Utils;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
 public class Tools implements CommandExecutor, Listener {
+
+    private static final String MAIN_TITLE = "§6Admin Tools";
+    private static final String PLAYER_TITLE = "§6Tools for §e";
+    private static final List<GameMode> GAMEMODES = Arrays.asList(GameMode.SURVIVAL, GameMode.CREATIVE, GameMode.ADVENTURE, GameMode.SPECTATOR);
 
     // Pages et bans
     private static final Map<UUID, Integer> playerPages = new HashMap<>();
@@ -50,6 +57,9 @@ public class Tools implements CommandExecutor, Listener {
     Map<UUID, Boolean> isMuteTime = new HashMap<>();
     Map<UUID, String> muteReason = new HashMap<>();
     Map<UUID, String> muteTime = new HashMap<>();
+
+    // Kick : admin -> joueur à kick, en attente de la raison
+    public static Map<UUID, String> kickPlayer = new HashMap<>();
 
     @Override
     public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {
@@ -80,45 +90,38 @@ public class Tools implements CommandExecutor, Listener {
         if (totalPages == 0) totalPages = 1;
         page = Math.max(0, Math.min(page, totalPages - 1));
 
-        Inventory inv = Bukkit.createInventory(null, 54, "§6Admin Tools §7(Page " + (page + 1) + "/" + totalPages + ")");
+        Inventory inv = Bukkit.createInventory(null, 54, MAIN_TITLE + " §7(Page " + (page + 1) + "/" + totalPages + ")");
 
         int start = page * maxPerPage;
         int end = Math.min(start + maxPerPage, players.size());
 
         for (int i = start; i < end; i++) {
-            Player target = players.get(i);
-            ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
-            SkullMeta meta = (SkullMeta) skull.getItemMeta();
-            if (meta != null) {
-                meta.setOwningPlayer(target);
-                meta.setDisplayName("§e" + target.getName());
-                skull.setItemMeta(meta);
-            }
-            inv.addItem(skull);
+            inv.addItem(Utils.head(players.get(i)));
         }
 
-        if (page > 0) {
-            ItemStack previous = new ItemStack(Material.ARROW);
-            ItemMeta pMeta = previous.getItemMeta();
-            if (pMeta != null) {
-                pMeta.setDisplayName("§cPage précédente");
-                previous.setItemMeta(pMeta);
-            }
-            inv.setItem(45, previous);
-        }
+        if (page > 0) inv.setItem(45, Utils.item(Material.ARROW, "§cPage précédente"));
+        if (page < totalPages - 1) inv.setItem(53, Utils.item(Material.ARROW, "§aPage suivante"));
 
-        if (page < totalPages - 1) {
-            ItemStack next = new ItemStack(Material.ARROW);
-            ItemMeta nMeta = next.getItemMeta();
-            if (nMeta != null) {
-                nMeta.setDisplayName("§aPage suivante");
-                next.setItemMeta(nMeta);
-            }
-            inv.setItem(53, next);
-        }
+        // Outils globaux
+        boolean chatLocked = Utils.data().getBoolean("chatlock.enabled");
+        boolean maintenance = Utils.data().getBoolean("maintenance.enabled");
+        inv.setItem(47, Utils.item(Material.ENDER_EYE, "§5Toggle Vanish",
+                "§7Status: " + (Vanish.isVanished(player.getUniqueId()) ? "§aON" : "§cOFF")));
+        inv.setItem(48, Utils.item(Material.COMPARATOR, "§5Vanish Options"));
+        inv.setItem(50, Utils.item(Material.OAK_SIGN, "§9Chat Lock", "§7Status: " + (chatLocked ? "§aON" : "§cOFF")));
+        inv.setItem(51, Utils.item(Material.REDSTONE_TORCH, "§4Maintenance", "§7Status: " + (maintenance ? "§aON" : "§cOFF")));
 
-        playerPages.put(player.getUniqueId(), page);
         player.openInventory(inv);
+        // Après openInventory : la fermeture de l'ancien menu efface la page
+        playerPages.put(player.getUniqueId(), page);
+    }
+
+    // Lance des commandes au tick suivant (pas d'ouverture de menu pendant un clic), puis une action optionnelle
+    private void run(Player player, Runnable after, String... commands) {
+        Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+            for (String cmd : commands) player.performCommand(cmd);
+            if (after != null) after.run();
+        });
     }
 
     @EventHandler
@@ -126,8 +129,9 @@ public class Tools implements CommandExecutor, Listener {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
 
-        Inventory inv = event.getInventory();
-        if (inv == null || !event.getView().getTitle().startsWith("§6Admin Tools") && !event.getView().getTitle().startsWith("§6Tools for")) return;
+        String title = event.getView().getTitle();
+        boolean mainMenu = title.startsWith(MAIN_TITLE);
+        if (!mainMenu && !title.startsWith(PLAYER_TITLE)) return;
 
         event.setCancelled(true);
 
@@ -137,16 +141,12 @@ public class Tools implements CommandExecutor, Listener {
         if (meta == null || !meta.hasDisplayName()) return;
 
         String name = meta.getDisplayName();
-        int currentPage = playerPages.getOrDefault(player.getUniqueId(), 0);
+        String button = ChatColor.stripColor(name);
 
-        if (name.equals("§aPage suivante")) {
-            openPage(player, currentPage + 1);
-        } else if (name.equals("§cPage précédente")) {
-            openPage(player, currentPage - 1);
-        } else if (clicked.getType() == Material.PLAYER_HEAD) {
+        if (clicked.getType() == Material.PLAYER_HEAD) {
 
             String targetName = name.replace("§e", "");
-            Player target = Bukkit.getPlayer(targetName);
+            Player target = Bukkit.getPlayerExact(targetName);
 
             if (target == null) {
                 player.closeInventory();
@@ -155,144 +155,136 @@ public class Tools implements CommandExecutor, Listener {
             }
 
             openToolsForPlayer(player, target);
+            return;
+        }
 
-        } else if (name.startsWith("§bFreeze")) {
+        if (mainMenu) {
+            int currentPage = playerPages.getOrDefault(player.getUniqueId(), 0);
+            Runnable reopen = () -> openPage(player, currentPage);
 
-            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
-            if (target == null) return;
+            switch (button) {
+                case "Page suivante": openPage(player, currentPage + 1); break;
+                case "Page précédente": openPage(player, currentPage - 1); break;
+                case "Toggle Vanish": run(player, reopen, "vanish"); break;
+                case "Vanish Options": run(player, null, "vanish options"); break;
+                case "Chat Lock": run(player, reopen, "chatlock"); break;
+                case "Maintenance": run(player, reopen, "maintenance"); break;
+            }
+            return;
+        }
+
+        Player target = Bukkit.getPlayerExact(title.substring(PLAYER_TITLE.length()));
+        if (target == null) {
+            player.closeInventory();
+            player.sendMessage("§cPlayer not found.");
+            return;
+        }
+        String targetName = target.getName();
+        Runnable reopen = () -> openToolsForPlayer(player, target);
+
+        if (button.startsWith("Freeze")) {
 
             if (target.hasMetadata("frozen")) {
-                target.removeMetadata("frozen", Bukkit.getPluginManager().getPlugin("AdvancedAdminTools"));
-                player.sendMessage("§aYou have unfrozen §e" + target.getName() + "§a.");
+                target.removeMetadata("frozen", Main.getInstance());
+                player.sendMessage("§aYou have unfrozen §e" + targetName + "§a.");
                 target.sendMessage("§aYou have been unfrozen by §e" + player.getName() + "§a.");
             } else {
-                target.setMetadata("frozen", new org.bukkit.metadata.FixedMetadataValue(Bukkit.getPluginManager().getPlugin("AdvancedAdminTools"), true));
-                player.sendMessage("§aYou have frozen §e" + target.getName() + "§a.");
+                target.setMetadata("frozen", new FixedMetadataValue(Main.getInstance(), true));
+                player.sendMessage("§aYou have frozen §e" + targetName + "§a.");
                 target.sendMessage("§cYou have been frozen by §e" + player.getName() + "§c.");
+                freezeMessage(target);
             }
 
             openToolsForPlayer(player, target);
 
-        } else if (name.startsWith("§aTeleport")) {
+        } else if (button.startsWith("Teleport")) {
 
-            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
-            if (target == null) return;
-
-            player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 1, false, false, false));
-            player.setGameMode(GameMode.CREATIVE);
-            player.teleport(target.getLocation());
-            player.sendMessage("§aYou have been teleported to §e" + target.getName() + "§a.");
             player.closeInventory();
+            run(player, null, "vanish on", "tpto " + targetName);
 
-        } else if (name.startsWith("§dKick")) {
+        } else if (button.startsWith("Kick")) {
 
-            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
-            if (target == null) return;
-
-            target.kickPlayer("§cYou have been kicked by §e" + player.getName() + "§c.");
-            player.sendMessage("§aYou have kicked §e" + target.getName() + "§a.");
+            kickPlayer.put(player.getUniqueId(), targetName);
             player.closeInventory();
+            player.sendMessage("§ePlease enter the kick reason in chat:");
 
-        } else if (name.startsWith("§cBan")) {
-
-            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
-            if (target == null) return;
+        } else if (button.startsWith("Ban")) {
 
             needsBan.put(player.getUniqueId(), true);
             isReason.put(player.getUniqueId(), false);
             isTime.put(player.getUniqueId(), false);
-            banPlayer.put(player.getUniqueId(), target.getName());
+            banPlayer.put(player.getUniqueId(), targetName);
             player.closeInventory();
             player.sendMessage("§ePlease enter the ban reason in chat:");
             banMessage(player);
 
-        } else if (name.startsWith("§eWarn")) {
-
-            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
-            if (target == null) return;
+        } else if (button.startsWith("Warn")) {
 
             needsWarn.put(player.getUniqueId(), true);
             isWarnReason.put(player.getUniqueId(), false);
-            warnPlayer.put(player.getUniqueId(), target.getName());
+            warnPlayer.put(player.getUniqueId(), targetName);
             player.closeInventory();
             player.sendMessage("§ePlease enter the warn reason in chat:");
             warnMessage(player);
 
-        } else if (name.startsWith("§6Mute")) {
-
-            Player target = Bukkit.getPlayer(event.getView().getTitle().replace("§6Tools for §e", ""));
-            if (target == null) return;
+        } else if (button.startsWith("Mute")) {
 
             needsMute.put(player.getUniqueId(), true);
             isMuteReason.put(player.getUniqueId(), false);
             isMuteTime.put(player.getUniqueId(), false);
-            mutePlayer.put(player.getUniqueId(), target.getName());
+            mutePlayer.put(player.getUniqueId(), targetName);
             player.closeInventory();
             player.sendMessage("§ePlease enter the mute reason in chat:");
             muteMessage(player);
 
+        } else if (button.equals("Invsee")) {
+            run(player, null, "invsee " + targetName);
+        } else if (button.equals("Endersee")) {
+            run(player, null, "endersee " + targetName);
+        } else if (button.equals("Clear Inventory")) {
+            run(player, null, "clearinv " + targetName);
+        } else if (button.equals("Player Info")) {
+            player.closeInventory();
+            run(player, null, "pinfo " + targetName);
+        } else if (button.equals("History")) {
+            player.closeInventory();
+            run(player, null, "history " + targetName);
+        } else if (button.equals("Heal")) {
+            run(player, reopen, "heal " + targetName);
+        } else if (button.equals("Feed")) {
+            run(player, reopen, "feed " + targetName);
+        } else if (button.startsWith("Gamemode")) {
+            int next = (GAMEMODES.indexOf(target.getGameMode()) + 1) % GAMEMODES.size();
+            run(player, reopen, "gm " + next + " " + targetName);
+        } else if (button.equals("Back")) {
+            openPage(player, 0);
         }
     }
 
     private void openToolsForPlayer(Player admin, Player target) {
-        Inventory inv = Bukkit.createInventory(null, 27, "§6Tools for §e" + target.getName());
+        Inventory inv = Bukkit.createInventory(null, 45, PLAYER_TITLE + target.getName());
 
-        ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
-        SkullMeta meta = (SkullMeta) skull.getItemMeta();
-        if (meta != null) {
-            meta.setOwningPlayer(target);
-            meta.setDisplayName("§e" + target.getName());
-            skull.setItemMeta(meta);
-        }
-        inv.setItem(4, skull);
+        inv.setItem(4, Utils.head(target));
 
-        ItemStack freeze = new ItemStack(Material.ICE);
-        ItemMeta fMeta = freeze.getItemMeta();
-        if (fMeta != null) {
-            fMeta.setDisplayName("§bFreeze §7(" + (target.hasMetadata("frozen") ? "On" : "Off") + ")");
-            freeze.setItemMeta(fMeta);
-        }
-        inv.setItem(10, freeze);
+        // Modération
+        inv.setItem(10, Utils.item(Material.ICE, "§bFreeze §7(" + (target.hasMetadata("frozen") ? "On" : "Off") + ")"));
+        inv.setItem(11, Utils.item(Material.ANVIL, "§dKick Player"));
+        inv.setItem(12, Utils.item(Material.PAPER, "§eWarn Player"));
+        inv.setItem(13, Utils.item(Material.SHEARS, "§6Mute Player"));
+        inv.setItem(14, Utils.item(Material.BARRIER, "§cBan Player"));
+        inv.setItem(15, Utils.item(Material.WRITABLE_BOOK, "§7History"));
+        inv.setItem(16, Utils.item(Material.BOOK, "§fPlayer Info"));
 
-        ItemStack teleport = new ItemStack(Material.ENDER_PEARL);
-        ItemMeta tMeta = teleport.getItemMeta();
-        if (tMeta != null) {
-            tMeta.setDisplayName("§aTeleport to Player");
-            teleport.setItemMeta(tMeta);
-        }
-        inv.setItem(12, teleport);
+        // Inspection / utilitaires
+        inv.setItem(19, Utils.item(Material.CHEST, "§3Invsee", "§7View and edit live"));
+        inv.setItem(20, Utils.item(Material.ENDER_CHEST, "§5Endersee", "§7View and edit live"));
+        inv.setItem(21, Utils.item(Material.LAVA_BUCKET, "§4Clear Inventory"));
+        inv.setItem(22, Utils.item(Material.ENDER_PEARL, "§aTeleport to Player", "§7Vanish + teleport", "§7/back to return"));
+        inv.setItem(23, Utils.item(Material.GOLDEN_APPLE, "§cHeal"));
+        inv.setItem(24, Utils.item(Material.COOKED_BEEF, "§6Feed"));
+        inv.setItem(25, Utils.item(Material.GRASS_BLOCK, "§2Gamemode §7(" + target.getGameMode().name().toLowerCase() + ")", "§7Click to cycle"));
 
-        ItemStack kick = new ItemStack(Material.ANVIL);
-        ItemMeta kMeta = kick.getItemMeta();
-        if (kMeta != null) {
-            kMeta.setDisplayName("§dKick Player");
-            kick.setItemMeta(kMeta);
-        }
-        inv.setItem(14, kick);
-
-        ItemStack ban = new ItemStack(Material.BARRIER);
-        ItemMeta bMeta = ban.getItemMeta();
-        if (bMeta != null) {
-            bMeta.setDisplayName("§cBan Player");
-            ban.setItemMeta(bMeta);
-        }
-        inv.setItem(16, ban);
-
-        ItemStack warn = new ItemStack(Material.PAPER);
-        ItemMeta wMeta = warn.getItemMeta();
-        if (wMeta != null) {
-            wMeta.setDisplayName("§eWarn Player");
-            warn.setItemMeta(wMeta);
-        }
-        inv.setItem(21, warn);
-
-        ItemStack mute = new ItemStack(Material.SHEARS);
-        ItemMeta mMeta = mute.getItemMeta();
-        if (mMeta != null) {
-            mMeta.setDisplayName("§6Mute Player");
-            mute.setItemMeta(mMeta);
-        }
-        inv.setItem(23, mute);
+        inv.setItem(40, Utils.item(Material.ARROW, "§7Back"));
 
         admin.openInventory(inv);
     }
@@ -303,10 +295,20 @@ public class Tools implements CommandExecutor, Listener {
         playerPages.remove(player.getUniqueId());
     }
 
-    @EventHandler
+    // LOWEST : passe avant le chat lock et le mute, qui ignorent les messages annulés
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onChatToBan(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+
+        // KICK
+        if (kickPlayer.containsKey(uuid)) {
+            event.setCancelled(true);
+            String targetName = kickPlayer.remove(uuid);
+            String kickReason = event.getMessage();
+            Bukkit.getScheduler().runTask(Main.getInstance(), () -> player.performCommand("kick " + targetName + " " + kickReason));
+            return;
+        }
 
         // BAN
         if (needsBan.getOrDefault(uuid, false)) {
@@ -314,7 +316,7 @@ public class Tools implements CommandExecutor, Listener {
             if (!isReason.getOrDefault(uuid, false)) {
                 reason.put(uuid, event.getMessage());
                 isReason.put(uuid, true);
-                player.sendMessage("§ePlease enter the ban duration in this format : §71m, 2h, 3d :");
+                player.sendMessage("§ePlease enter the ban duration in this format : §71m, 2h, 3d, permanent :");
                 return;
             } else if (!isTime.getOrDefault(uuid, false)) {
                 String time = event.getMessage();
@@ -359,7 +361,7 @@ public class Tools implements CommandExecutor, Listener {
             if (!isMuteReason.getOrDefault(uuid, false)) {
                 muteReason.put(uuid, event.getMessage());
                 isMuteReason.put(uuid, true);
-                player.sendMessage("§ePlease enter the mute duration in this format : §71m, 2h, 3d :");
+                player.sendMessage("§ePlease enter the mute duration in this format : §71m, 2h, 3d, permanent :");
                 return;
             } else if (!isMuteTime.getOrDefault(uuid, false)) {
                 muteTime.put(uuid, event.getMessage());
@@ -408,23 +410,39 @@ public class Tools implements CommandExecutor, Listener {
         muteReason.remove(uuid);
         muteTime.remove(uuid);
 
+        kickPlayer.remove(uuid);
+
         playerPages.remove(uuid);
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        // Le gel survit à la reconnexion : on relance le titre
+        if (event.getPlayer().hasMetadata("frozen")) freezeMessage(event.getPlayer());
     }
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
-        if (player.hasMetadata("frozen")) {
-            event.setCancelled(true);
-            freezeMessage(player);
+        if (!player.hasMetadata("frozen") || event.getTo() == null) return;
+
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        // Bloque le déplacement mais laisse tourner la caméra
+        if (from.getX() != to.getX() || from.getY() != to.getY() || from.getZ() != to.getZ()) {
+            Location stay = from.clone();
+            stay.setYaw(to.getYaw());
+            stay.setPitch(to.getPitch());
+            event.setTo(stay);
         }
     }
 
+    // Une seule tâche par gel, lancée au freeze
     public void freezeMessage(Player player) {
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (!player.hasMetadata("frozen")) {
+                if (!player.isOnline() || !player.hasMetadata("frozen")) {
                     this.cancel();
                     return;
                 }

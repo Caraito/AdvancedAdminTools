@@ -9,6 +9,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -24,11 +25,26 @@ public final class Main extends JavaPlugin implements Listener {
     public File muteFile = new File(getDataFolder(), "mute.yml");
     public FileConfiguration Muteconfig = YamlConfiguration.loadConfiguration(muteFile);
 
+    // Historique, vanish, maintenance, chat lock, IPs
+    public File dataFile = new File(getDataFolder(), "data.yml");
+    public FileConfiguration Dataconfig = YamlConfiguration.loadConfiguration(dataFile);
+
     @Override
     public void onEnable() {
         System.out.println("Plugin enabled!");
 
         instance = this;
+
+        for (File file : new File[]{banFile, muteFile, dataFile}) {
+            if (!file.exists()) {
+                try {
+                    file.getParentFile().mkdirs();
+                    file.createNewFile();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
 
         // Register commands
         this.getCommand("ban").setExecutor(new BanCommand());
@@ -36,39 +52,66 @@ public final class Main extends JavaPlugin implements Listener {
         this.getCommand("warn").setExecutor(new WarnCommand());
         this.getCommand("unban").setExecutor(new UnbanCommand());
         this.getCommand("unmute").setExecutor(new UnmuteCommand());
-        this.getCommand("tools").setExecutor(new Tools());
+
+        Tools tools = new Tools();
+        this.getCommand("tools").setExecutor(tools);
+
+        StaffCommands staff = new StaffCommands();
+        for (String cmd : new String[]{"kick", "history", "staffchat", "cmdspy", "broadcast", "clearchat", "chatlock", "maintenance"}) {
+            this.getCommand(cmd).setExecutor(staff);
+        }
+
+        PlayerCommands playerCommands = new PlayerCommands();
+        for (String cmd : new String[]{"invsee", "endersee", "clearinv", "pinfo", "alts", "tpto", "back", "heal", "feed", "gm", "fly", "god"}) {
+            this.getCommand(cmd).setExecutor(playerCommands);
+        }
+
+        Vanish vanish = new Vanish();
+        this.getCommand("vanish").setExecutor(vanish);
 
         //Event
         this.getServer().getPluginManager().registerEvents(this, this);
-        this.getServer().getPluginManager().registerEvents(new Tools(), this);
+        this.getServer().getPluginManager().registerEvents(tools, this);
+        this.getServer().getPluginManager().registerEvents(staff, this);
+        this.getServer().getPluginManager().registerEvents(playerCommands, this);
+        this.getServer().getPluginManager().registerEvents(vanish, this);
 
+        // Tâches répétées
+        Bukkit.getScheduler().runTaskTimer(this, playerCommands::syncInvsee, 5L, 5L);
+        Bukkit.getScheduler().runTaskTimer(this, vanish::remind, 40L, 40L);
+        Bukkit.getScheduler().runTaskTimer(this, vanish::syncSilent, 5L, 5L);
 
-
-
-        if (!banFile.exists()) {
-            try {
-                banFile.getParentFile().mkdirs();
-                banFile.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        if (!muteFile.exists()) {
-            try {
-                muteFile.getParentFile().mkdirs();
-                muteFile.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-
+        // Après un /reload
+        Bukkit.getOnlinePlayers().forEach(vanish::apply);
     }
 
     @Override
     public void onDisable() {
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                viewer.showPlayer(this, target);
+            }
+        }
         System.out.println("Plugin disabled!");
+    }
+
+    public void saveData() {
+        try {
+            Dataconfig.save(dataFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        String path = "players." + player.getUniqueId();
+        if (player.getAddress() != null) {
+            Dataconfig.set(path + ".ip", player.getAddress().getAddress().getHostAddress());
+        }
+        Dataconfig.set(path + ".name", player.getName());
+        saveData();
     }
 
     @EventHandler
@@ -79,38 +122,24 @@ public final class Main extends JavaPlugin implements Listener {
 
         String reason = Banconfig.getString(uuid + ".reason", "Unknown");
         String banner = Banconfig.getString(uuid + ".banner", "Unknown");
-        String timeStr = Banconfig.getString(uuid + ".time", "Permanent");
+        long expireAt = Banconfig.getLong(uuid + ".time", -1); // -1 = "Permanent"
+        String timeStr = "Permanent";
 
-        try {
-            if (!timeStr.equalsIgnoreCase("Permanent")) {
-                long expireAt = Long.parseLong(timeStr);
-                long now = System.currentTimeMillis();
+        if (expireAt != -1) {
+            long remainingMs = expireAt - System.currentTimeMillis();
 
-                if (now >= expireAt) {
-                    // Deban automatique
-                    Banconfig.set(uuid + ".isBan", false);
-                    Banconfig.set(uuid + ".reason", null);
-                    Banconfig.set(uuid + ".banner", null);
-                    Banconfig.set(uuid + ".time", null);
+            if (remainingMs <= 0) {
+                // Deban automatique
+                Banconfig.set(uuid, null);
+                try {
                     Banconfig.save(banFile);
-                    return; // Laisse le joueur se connecter
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
-
-                // Calcul du temps restant
-                long remainingMs = expireAt - now;
-                long seconds = remainingMs / 1000 % 60;
-                long minutes = remainingMs / (1000 * 60) % 60;
-                long hours = remainingMs / (1000 * 60 * 60) % 24;
-                long days = remainingMs / (1000 * 60 * 60 * 24);
-
-                timeStr = (days > 0 ? days + "d " : "") +
-                        (hours > 0 ? hours + "h " : "") +
-                        (minutes > 0 ? minutes + "m " : "") +
-                        (seconds > 0 ? seconds + "s" : "");
+                return; // Laisse le joueur se connecter
             }
 
-        } catch (NumberFormatException | IOException e) {
-            // Si "Permanent" ou erreur → on laisse timeStr tel quel
+            timeStr = Utils.formatDuration(remainingMs);
         }
 
         // Si le joueur est toujours banni
@@ -119,87 +148,51 @@ public final class Main extends JavaPlugin implements Listener {
                         "\nBanned by: " + banner + "\nTime remaining: " + timeStr);
 
         // Notifier les admins
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("*")) {
-                player.sendMessage("§7" + event.getName() + " §etried to join but is banned!§a\nReason: §7"
-                        + reason + "§a\nBanned by: §7" + banner + "§a\nTime remaining: §7" + timeStr);
-            }
-        }
+        Utils.notify("aat.notify", "§7" + event.getName() + " §etried to join but is banned!§a\nReason: §7"
+                + reason + "§a\nBanned by: §7" + banner + "§a\nTime remaining: §7" + timeStr);
     }
 
-
-
-    @EventHandler
+    // ignoreCancelled : ne bloque pas un admin muet qui tape une raison dans un menu
+    @EventHandler(ignoreCancelled = true)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         String uuid = player.getUniqueId().toString();
 
         // Vérifie si le joueur est mute
-        boolean isMute = Muteconfig.getBoolean(uuid + ".isMute");
-        if (!isMute) return;
+        if (!Muteconfig.getBoolean(uuid + ".isMute")) return;
 
         String reason = Muteconfig.getString(uuid + ".reason", "Unknown");
         String muter = Muteconfig.getString(uuid + ".muter", "Unknown");
-        String timeStr = Muteconfig.getString(uuid + ".time", "0");
+        long expireAt = Muteconfig.getLong(uuid + ".time", -1); // -1 = "Permanent"
+        String timeMsg = "Permanent";
 
-        try {
-            long expireAt = Long.parseLong(timeStr);
-            long now = System.currentTimeMillis();
+        if (expireAt != -1) {
+            long remainingMs = expireAt - System.currentTimeMillis();
 
-            if (now >= expireAt) {
+            if (remainingMs <= 0) {
                 // Débloquer automatiquement le joueur
-                Muteconfig.set(uuid + ".isMute", false);
-                Muteconfig.set(uuid + ".reason", null);
-                Muteconfig.set(uuid + ".muter", null);
-                Muteconfig.set(uuid + ".time", null);
-                Muteconfig.save(muteFile);
+                Muteconfig.set(uuid, null);
+                try {
+                    Muteconfig.save(muteFile);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 return; // Laisse le joueur parler
             }
 
-            // Calcul du temps restant
-            long remainingMs = expireAt - now;
-            long seconds = remainingMs / 1000 % 60;
-            long minutes = remainingMs / (1000 * 60) % 60;
-            long hours = remainingMs / (1000 * 60 * 60) % 24;
-            long days = remainingMs / (1000 * 60 * 60 * 24);
-
-            String timeMsg = (days > 0 ? days + "d " : "") +
-                    (hours > 0 ? hours + "h " : "") +
-                    (minutes > 0 ? minutes + "m " : "") +
-                    (seconds > 0 ? seconds + "s" : "");
-
-            // Annule le chat et prévient le joueur
-            event.setCancelled(true);
-            player.sendMessage("§cYou are muted!\n§aReason: §7" + reason +
-                    "\n§aMuted by: §7" + muter +
-                    "\n§aTime remaining: §7" + timeMsg);
-
-            // Prévient les admins
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.hasPermission("*")) {
-                    p.sendMessage("§7" + player.getName() + " §ctried to chat but is muted!\n§aReason: §7"
-                            + reason + "\n§aMuted by: §7" + muter + "\n§aTime remaining: §7" + timeMsg);
-                }
-            }
-
-        } catch (NumberFormatException | IOException e) {
-            // Si time = "Permanent" ou erreur, on considère mute permanent
-            event.setCancelled(true);
-            player.sendMessage("§cYou are muted!\n§aReason: §7" + reason +
-                    "\n§aMuted by: §7" + muter +
-                    "\n§aTime remaining: §7Permanent");
-
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.hasPermission("*")) {
-                    p.sendMessage("§7" + player.getName() + " §ctried to chat but is muted!\n§aReason: §7"
-                            + reason + "\n§aMuted by: §7" + muter + "\n§aTime remaining: §7Permanent");
-                }
-            }
+            timeMsg = Utils.formatDuration(remainingMs);
         }
+
+        // Annule le chat et prévient le joueur
+        event.setCancelled(true);
+        player.sendMessage("§cYou are muted!\n§aReason: §7" + reason +
+                "\n§aMuted by: §7" + muter +
+                "\n§aTime remaining: §7" + timeMsg);
+
+        // Prévient les admins
+        Utils.notify("aat.notify", "§7" + player.getName() + " §ctried to chat but is muted!\n§aReason: §7"
+                + reason + "\n§aMuted by: §7" + muter + "\n§aTime remaining: §7" + timeMsg);
     }
-
-
-
 
     public static Main getInstance () {
 

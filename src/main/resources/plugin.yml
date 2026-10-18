@@ -25,3 +25,115 @@ commands:
   tools:
     description: Open the admin tools menu.
     permission: aat.tools
+  kick:
+    description: Kick a player with a reason.
+    permission: aat.kick
+  history:
+    description: Show the sanction history of a player.
+    permission: aat.history
+  staffchat:
+    description: Send a message to the staff only.
+    aliases: [ sc ]
+    permission: aat.staffchat
+  cmdspy:
+    description: See the commands typed by players.
+    aliases: [ commandspy ]
+    permission: aat.cmdspy
+  broadcast:
+    description: Send an announcement to everyone.
+    aliases: [ bc ]
+    permission: aat.broadcast
+  clearchat:
+    description: Clear the chat.
+    permission: aat.clearchat
+  chatlock:
+    description: Lock / unlock the chat and manage its whitelist.
+    permission: aat.chatlock
+  maintenance:
+    description: Toggle maintenance mode and manage its whitelist.
+    permission: aat.maintenance
+  vanish:
+    description: Toggle vanish or open vanish options.
+    aliases: [ v ]
+    permission: aat.vanish
+  invsee:
+    description: View and edit a player's inventory in real time.
+    permission: aat.invsee
+  endersee:
+    description: View and edit a player's ender chest in real time.
+    permission: aat.endersee
+  clearinv:
+    description: Clear a player's inventory (with confirmation).
+    permission: aat.clearinv
+  pinfo:
+    description: Show information about a player.
+    aliases: [ playerinfo ]
+    permission: aat.pinfo
+  alts:
+    description: List accounts sharing the same IP.
+    permission: aat.alts
+  tpto:
+    description: Teleport to a player.
+    permission: aat.tp
+  back:
+    description: Go back to your location before /tpto.
+    permission: aat.tp
+  heal:
+    description: Heal yourself or a player.
+    permission: aat.heal
+  feed:
+    description: Feed yourself or a player.
+    permission: aat.feed
+  gm:
+    description: Change gamemode.
+    permission: aat.gamemode
+  fly:
+    description: Toggle fly.
+    permission: aat.fly
+  god:
+    description: Toggle god mode.
+    permission: aat.god
+
+permissions:
+  aat.*:
+    description: All AdvancedAdminTools permissions.
+    default: op
+    children:
+      aat.ban: true
+      aat.mute: true
+      aat.warn: true
+      aat.unban: true
+      aat.unmute: true
+      aat.tools: true
+      aat.kick: true
+      aat.history: true
+      aat.staffchat: true
+      aat.cmdspy: true
+      aat.broadcast: true
+      aat.clearchat: true
+      aat.chatlock: true
+      aat.chatlock.bypass: true
+      aat.maintenance: true
+      aat.maintenance.bypass: true
+      aat.vanish: true
+      aat.invsee: true
+      aat.endersee: true
+      aat.clearinv: true
+      aat.pinfo: true
+      aat.alts: true
+      aat.tp: true
+      aat.heal: true
+      aat.feed: true
+      aat.gamemode: true
+      aat.fly: true
+      aat.god: true
+      aat.notify: true
+  aat.notify:
+    description: Receive staff alerts (banned player joining, muted player chatting).
+    default: op
+  aat.chatlock.bypass:
+    description: Talk while the chat is locked.
+    default: op
+  aat.maintenance.bypass:
+    description: Join while maintenance is enabled.
+    default: op

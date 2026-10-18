@@ -1,7 +1,7 @@
 package fr.caraito.advancedAdminTools.command;
 
 import fr.caraito.advancedAdminTools.Main;
-import org.bukkit.Bukkit;
+import fr.caraito.advancedAdminTools.Utils;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -22,11 +22,11 @@ public class UnmuteCommand implements CommandExecutor {
 
         if (strings.length < 1) {
             commandSender.sendMessage("§cUsage: §7/unmute <player>");
-            return false;
+            return true;
         }
 
         String targetPlayer = strings[0];
-        OfflinePlayer target = Bukkit.getOfflinePlayer(targetPlayer);
+        OfflinePlayer target = Utils.findPlayer(targetPlayer);
 
         if (target == null) {
             commandSender.sendMessage("§ePlayer §7" + targetPlayer + " §enot found.");
@@ -43,10 +43,7 @@ public class UnmuteCommand implements CommandExecutor {
             return true;
         }
 
-        muteConfig.set(uuid + ".isMute", false);
-        muteConfig.set(uuid + ".reason", null);
-        muteConfig.set(uuid + ".muter", null);
-        muteConfig.set(uuid + ".time", null);
+        muteConfig.set(uuid, null);
 
         try {
             muteConfig.save(muteFile);
@@ -54,26 +51,16 @@ public class UnmuteCommand implements CommandExecutor {
             e.printStackTrace();
         }
 
-        Player playerWhoMute = Bukkit.getPlayer(targetPlayer);
+        Player playerWhoMute = target.getPlayer();
 
         if (playerWhoMute != null) {
             playerWhoMute.sendMessage("§aYou have been unmuted");
         }
 
+        Utils.logSanction(target, "Unmute", commandSender.getName(), "-", null);
 
-        String msg = "§c[Advanced Admin Tools] §a- [Mute] - §ePlayer §7" + targetPlayer + " §ehas been unmuted by §e" + commandSender.getName() + ".";
-
-        // Notify all players with permission
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.hasPermission("aat.unmute")) {
-                p.sendMessage(msg);
-            }
-        }
-
-        // Feedback to sender if not player or not admin
-        if (!(commandSender instanceof Player) || !((Player)commandSender).hasPermission("aat.unmute")) {
-            commandSender.sendMessage(msg);
-        }
+        // Notify all players with permission (+ console)
+        Utils.notify("aat.unmute", Utils.PREFIX + "[Mute] - §ePlayer §7" + target.getName() + " §ehas been unmuted by §e" + commandSender.getName() + ".");
 
         return true;
     }

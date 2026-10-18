@@ -1,7 +1,7 @@
 package fr.caraito.advancedAdminTools.command;
 
 import fr.caraito.advancedAdminTools.Main;
-import org.bukkit.Bukkit;
+import fr.caraito.advancedAdminTools.Utils;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -22,39 +22,35 @@ public class MuteCommand implements CommandExecutor {
                 String durationArg = strings[1];
                 String reason = String.join(" ", java.util.Arrays.copyOfRange(strings, 2, strings.length));
 
-                OfflinePlayer target = Bukkit.getOfflinePlayer(targetPlayer);
+                OfflinePlayer target = Utils.findPlayer(targetPlayer);
 
                 if (target == null) {
                     commandSender.sendMessage("§cPlayer " + targetPlayer + " not found.");
                     return true;
                 }
 
-                Long durationMs = parseDuration(durationArg);
-                if (durationMs == null || durationMs <= 0) {
-                    commandSender.sendMessage("§cInvalid time format. §aExamples : §71m, 2h, 3d");
+                Long durationMs = Utils.parseDuration(durationArg);
+                if (durationMs == null) {
+                    commandSender.sendMessage("§cInvalid time format. §aExamples : §71m, 2h, 3d, permanent");
                     return true;
                 }
 
                 mutePlayerCommand(target, reason, commandSender.getName(), durationMs);
 
-                Player playerWhoMute = Bukkit.getPlayer(targetPlayer);
+                String timeMsg = Utils.formatDuration(durationMs);
+                Player playerWhoMute = target.getPlayer();
 
                 if (playerWhoMute != null) {
-                    playerWhoMute.sendMessage("§cYou have been muted! §aReason: §7" + reason + " §aDuration: §7" + durationArg);
+                    playerWhoMute.sendMessage("§cYou have been muted! §aReason: §7" + reason + " §aDuration: §7" + timeMsg);
                 }
 
-
-
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    if (player.hasPermission("aat.mute")) {
-                        player.sendMessage("§c[Advanced Admin Tools] §a- [Mute] - §ePlayer §7" + targetPlayer + " §ehas been muted by §7" + commandSender.getName() + " §efor: §7" + reason + " §e(Duration: " + durationArg + ")");
-                    }
-                }
+                Utils.logSanction(target, "Mute", commandSender.getName(), reason, timeMsg);
+                Utils.notify("aat.mute", Utils.PREFIX + "[Mute] - §ePlayer §7" + target.getName() + " §ehas been muted by §7" + commandSender.getName() + " §efor: §7" + reason + " §e(Duration: " + timeMsg + ")");
 
                 return true;
             } else {
                 commandSender.sendMessage("§cUsage: §7/mute <player> <time> <reason>");
-                return false;
+                return true;
             }
         } else {
             commandSender.sendMessage("§cYou do not have permission to use this command.");
@@ -63,6 +59,7 @@ public class MuteCommand implements CommandExecutor {
 
     }
 
+    // durationMs = -1 pour permanent
     public void mutePlayerCommand(OfflinePlayer target, String reason, String muter, Long durationMs) {
         Main plugin = Main.getInstance();
         FileConfiguration muteConfig = plugin.Muteconfig;
@@ -74,8 +71,11 @@ public class MuteCommand implements CommandExecutor {
         muteConfig.set(uuid + ".reason", reason);
         muteConfig.set(uuid + ".muter", muter);
 
-        long expireAt = System.currentTimeMillis() + durationMs;
-        muteConfig.set(uuid + ".time", expireAt);
+        if (durationMs == -1) {
+            muteConfig.set(uuid + ".time", "Permanent");
+        } else {
+            muteConfig.set(uuid + ".time", System.currentTimeMillis() + durationMs);
+        }
 
         try {
             muteConfig.save(muteFile);
@@ -83,33 +83,5 @@ public class MuteCommand implements CommandExecutor {
             e.printStackTrace();
         }
 
-
-
-    }
-
-    // Retourne la durée en ms, ou null si erreur
-    private Long parseDuration(String input) {
-        try {
-            long multiplier = 1000L;
-            if (input.endsWith("s")) {
-                multiplier = 1000L;
-                input = input.substring(0, input.length() - 1);
-            } else if (input.endsWith("m")) {
-                multiplier = 60 * 1000L;
-                input = input.substring(0, input.length() - 1);
-            } else if (input.endsWith("h")) {
-                multiplier = 60 * 60 * 1000L;
-                input = input.substring(0, input.length() - 1);
-            } else if (input.endsWith("d")) {
-                multiplier = 24 * 60 * 60 * 1000L;
-                input = input.substring(0, input.length() - 1);
-            } else {
-                return null;
-            }
-            long value = Long.parseLong(input);
-            return value * multiplier;
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

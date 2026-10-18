@@ -1,13 +1,12 @@
 package fr.caraito.advancedAdminTools.command;
 
 import fr.caraito.advancedAdminTools.Main;
-import org.bukkit.Bukkit;
+import fr.caraito.advancedAdminTools.Utils;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,11 +21,11 @@ public class UnbanCommand implements CommandExecutor {
 
         if (strings.length < 1) {
             commandSender.sendMessage("§cUsage: §7/unban <player>");
-            return false;
+            return true;
         }
 
         String targetPlayer = strings[0];
-        OfflinePlayer target = Bukkit.getOfflinePlayer(targetPlayer);
+        OfflinePlayer target = Utils.findPlayer(targetPlayer);
 
         if (target == null) {
             commandSender.sendMessage("§ePlayer §7" + targetPlayer + " §enot found.");
@@ -43,10 +42,7 @@ public class UnbanCommand implements CommandExecutor {
             return true;
         }
 
-        banConfig.set(uuid + ".isBan", false);
-        banConfig.set(uuid + ".reason", null);
-        banConfig.set(uuid + ".banner", null);
-        banConfig.set(uuid + ".time", null);
+        banConfig.set(uuid, null);
 
         try {
             banConfig.save(banFile);
@@ -56,12 +52,8 @@ public class UnbanCommand implements CommandExecutor {
             return true;
         }
 
-
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("aat.unban")) {
-                player.sendMessage("§c[Advanced Admin Tools] §a- [Ban] - §ePlayer §7" + targetPlayer + " §ehas been unbanned by §7" + commandSender.getName() + ".");
-            }
-        }
+        Utils.logSanction(target, "Unban", commandSender.getName(), "-", null);
+        Utils.notify("aat.unban", Utils.PREFIX + "[Ban] - §ePlayer §7" + target.getName() + " §ehas been unbanned by §7" + commandSender.getName() + ".");
 
         return true;
     }

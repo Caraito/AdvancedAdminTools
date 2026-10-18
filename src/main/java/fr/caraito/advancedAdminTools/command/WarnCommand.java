@@ -1,5 +1,6 @@
 package fr.caraito.advancedAdminTools.command;
 
+import fr.caraito.advancedAdminTools.Utils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -16,7 +17,7 @@ public class WarnCommand implements CommandExecutor {
 
         if (strings.length < 2) {
             commandSender.sendMessage("§cUsage: §7/warn <player> <reason>");
-            return false;
+            return true;
         }
 
         String targetName = strings[0];
@@ -31,18 +32,10 @@ public class WarnCommand implements CommandExecutor {
         // Warn message to player
         target.sendMessage("§cYou have received a warning! §aReason: §7" + reason);
 
-        // Notify all admins with permission
-        String adminMsg = "§c[Advanced Admin Tools] §a- [Warn] - §7" + target.getName() + " §ehas been warned by §7" + commandSender.getName() + ". §aReason: §7" + reason;
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.hasPermission("aat.warn")) {
-                p.sendMessage(adminMsg);
-            }
-        }
+        Utils.logSanction(target, "Warn", commandSender.getName(), reason, null);
 
-        // Feedback to sender if not player or not admin
-        if (!(commandSender instanceof Player) || !((Player)commandSender).hasPermission("aat.warn")) {
-            commandSender.sendMessage(adminMsg);
-        }
+        // Notify all admins with permission (+ console)
+        Utils.notify("aat.warn", Utils.PREFIX + "[Warn] - §7" + target.getName() + " §ehas been warned by §7" + commandSender.getName() + ". §aReason: §7" + reason);
 
         return true;
     }
