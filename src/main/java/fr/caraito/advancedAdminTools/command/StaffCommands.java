@@ -11,10 +11,12 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.player.PlayerLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.*;
 
@@ -22,6 +24,7 @@ import java.util.*;
 public class StaffCommands implements CommandExecutor, Listener {
 
     private final Set<UUID> spies = new HashSet<>();
+    private final Set<UUID> maintenanceKicked = new HashSet<>();
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String s, String[] args) {
@@ -153,11 +156,20 @@ public class StaffCommands implements CommandExecutor, Listener {
         return "§cThe server is in maintenance.\n§7Please come back later.";
     }
 
+    // Contrôle à l'arrivée plutôt qu'avec PlayerLoginEvent (déprécié par Paper, qui bride alors d'autres plugins).
+    // Expulsé au tick suivant, sans message de connexion ni de déconnexion.
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onJoin(PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+        if (!Utils.data().getBoolean("maintenance.enabled") || canJoinMaintenance(p)) return;
+        event.setJoinMessage(null);
+        maintenanceKicked.add(p.getUniqueId());
+        Bukkit.getScheduler().runTask(Main.getInstance(), () -> p.kickPlayer(maintenanceMessage()));
+    }
+
     @EventHandler
-    public void onLogin(PlayerLoginEvent event) {
-        if (Utils.data().getBoolean("maintenance.enabled") && !canJoinMaintenance(event.getPlayer())) {
-            event.disallow(PlayerLoginEvent.Result.KICK_OTHER, maintenanceMessage());
-        }
+    public void onQuit(PlayerQuitEvent event) {
+        if (maintenanceKicked.remove(event.getPlayer().getUniqueId())) event.setQuitMessage(null);
     }
 
     @EventHandler(ignoreCancelled = true)

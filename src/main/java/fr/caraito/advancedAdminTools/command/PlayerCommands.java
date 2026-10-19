@@ -7,7 +7,6 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -26,6 +25,8 @@ import org.bukkit.inventory.ItemStack;
 import java.util.*;
 
 // Permissions vérifiées par Bukkit via plugin.yml
+// getMaxHealth() (déprécié) plutôt que l'attribut : son nom a changé en 1.21.3, getMaxHealth() existe de 1.18 à 26.x
+@SuppressWarnings("deprecation")
 public class PlayerCommands implements CommandExecutor, Listener {
 
     private static final String INVSEE_TITLE = "§6Invsee: §e";
@@ -103,7 +104,7 @@ public class PlayerCommands implements CommandExecutor, Listener {
                 if (target == null) return true;
                 switch (cmd) {
                     case "heal":
-                        target.setHealth(target.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
+                        target.setHealth(target.getMaxHealth());
                         target.setFireTicks(0);
                         feedback(sender, target, "Healed");
                         break;
@@ -189,7 +190,7 @@ public class PlayerCommands implements CommandExecutor, Listener {
             sender.sendMessage("§aPing: §7" + p.getPing() + "ms");
             sender.sendMessage("§aLocation: §7" + loc.getWorld().getName() + " " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
             sender.sendMessage("§aGamemode: §7" + p.getGameMode().name().toLowerCase());
-            sender.sendMessage("§aHealth: §7" + Math.round(p.getHealth()) + "/" + Math.round(p.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue())
+            sender.sendMessage("§aHealth: §7" + Math.round(p.getHealth()) + "/" + Math.round(p.getMaxHealth())
                     + " §aFood: §7" + p.getFoodLevel() + "/20");
             sender.sendMessage("§aFly: §7" + yesNo(p.getAllowFlight()) + " §aGod: §7" + yesNo(p.isInvulnerable())
                     + " §aFrozen: §7" + yesNo(p.hasMetadata("frozen")));

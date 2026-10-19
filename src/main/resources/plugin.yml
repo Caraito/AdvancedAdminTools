@@ -1,5 +1,5 @@
 name: AdvancedAdminTools
-version: '1.0'
+version: '2.0.0'
 main: fr.caraito.advancedAdminTools.Main
 api-version: '1.18'
 authors: [ Caraito ]
